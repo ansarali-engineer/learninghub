@@ -81,8 +81,7 @@ def register(request):
         return error_response(str(e),"Error")
 
 
-    return success_response("User created Successfully",user)
-
+    return success_response("User Created Successfully",data=user,status_code=201)
 
 @api_view(["POST"])
 def login(request):
