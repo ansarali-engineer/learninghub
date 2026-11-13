@@ -1,13 +1,13 @@
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.test import RequestFactory
 from django.contrib.auth.hashers import check_password
 from django.contrib.auth import get_user_model
-from rest_framework.test import force_authenticate
+from rest_framework.test import APIRequestFactory, force_authenticate
 
 from repositries.user_repositry import users_list
 from services.auth_service import register_user
 from users.models import User
-from users.views import user_list
+from users.views import login, register, user_list
 
 
 class UserWorkflowTests(TestCase):
@@ -64,12 +64,51 @@ class UserWorkflowTests(TestCase):
 
         response = user_list(request)
 
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 401)
+
+    def test_login_bearer_token_authorizes_admin_user_list(self):
+        register_user(
+            "admin@example.com",
+            "learn1234",
+            "Alex",
+            "Admin",
+            role="admin",
+        )
+        factory = APIRequestFactory()
+        login_request = factory.post(
+            "/api/login",
+            {"email": "admin@example.com", "password": "learn1234"},
+            format="json",
+        )
+
+        login_response = login(login_request)
+        token = login_response.data["data"]["access_token"]
+        list_request = factory.get(
+            "/api/users_list",
+            HTTP_AUTHORIZATION=f"Bearer {token}",
+        )
+
+        list_response = user_list(list_request)
+
+        self.assertEqual(login_response.status_code, 200)
+        self.assertEqual(login_response.data["data"]["token_type"], "Bearer")
+        self.assertEqual(list_response.status_code, 200)
+
+    def test_login_rejects_invalid_password(self):
+        register_user(
+            "student@example.com", "learn1234", "Avery", "Student"
+        )
+        request = APIRequestFactory().post(
+            "/api/login",
+            {"email": "student@example.com", "password": "wrong-password"},
+            format="json",
+        )
+
+        response = login(request)
+
+        self.assertEqual(response.status_code, 401)
 
     def test_public_registration_cannot_assign_privileged_role(self):
-        from rest_framework.test import APIRequestFactory
-        from users.views import register
-
         request = APIRequestFactory().post(
             "/api/create_user",
             {
@@ -84,5 +123,73 @@ class UserWorkflowTests(TestCase):
 
         response = register(request)
 
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 403)
         self.assertFalse(User.objects.filter(email="admin@example.com").exists())
+
+    def test_admin_can_assign_other_roles_and_statuses(self):
+        admin = register_user(
+            "operator@example.com",
+            "learn1234",
+            "Alex",
+            "Operator",
+            role="admin",
+        )
+        admin_user = User.objects.get(email=admin["email"])
+        request = APIRequestFactory().post(
+            "/api/create_user",
+            {
+                "email": "instructor@example.com",
+                "password": "learn1234",
+                "first_name": "Avery",
+                "last_name": "Instructor",
+                "role": "instructor",
+                "status": "inactive",
+            },
+            format="json",
+        )
+        force_authenticate(request, user=admin_user)
+
+        response = register(request)
+
+        self.assertEqual(response.status_code, 200)
+        created_user = User.objects.get(email="instructor@example.com")
+        self.assertEqual(created_user.role, "instructor")
+        self.assertEqual(created_user.status, "inactive")
+
+    @override_settings(ADMIN_BOOTSTRAP_TOKEN="test-bootstrap-token")
+    def test_bootstrap_token_can_create_only_the_first_admin(self):
+        request = APIRequestFactory().post(
+            "/api/create_user",
+            {
+                "email": "first-admin@example.com",
+                "password": "learn1234",
+                "first_name": "First",
+                "last_name": "Admin",
+                "role": "admin",
+                "bootstrap_token": "test-bootstrap-token",
+            },
+            format="json",
+        )
+
+        response = register(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(User.objects.filter(role="admin").exists())
+
+        second_request = APIRequestFactory().post(
+            "/api/create_user",
+            {
+                "email": "second-admin@example.com",
+                "password": "learn1234",
+                "first_name": "Second",
+                "last_name": "Admin",
+                "role": "admin",
+                "bootstrap_token": "test-bootstrap-token",
+            },
+            format="json",
+        )
+
+        second_response = register(second_request)
+
+        self.assertEqual(second_response.status_code, 403)
+        self.assertFalse(User.objects.filter(email="second-admin@example.com").exists())
