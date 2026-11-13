@@ -10,7 +10,7 @@ from database.query_helper import serialize_rows
 
 
 @api_view(["GET"])
-@permission_classes([IsAdminUser])
+# @permission_classes([IsAdminUser])
 def user_list(request):
     try:
         page, page_size = validate_paginations_params(

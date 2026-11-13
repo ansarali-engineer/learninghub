@@ -16,6 +16,26 @@ import os
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+env_file = BASE_DIR / ".env"
+if env_file.is_file():
+    for line_number, line in enumerate(
+        env_file.read_text(encoding="utf-8").splitlines(), start=1
+    ):
+        entry = line.strip()
+        if not entry or entry.startswith("#"):
+            continue
+        if "=" not in entry:
+            raise ValueError(f"Invalid .env entry on line {line_number}.")
+        name, value = entry.split("=", 1)
+        name = name.strip()
+        value = value.strip()
+        if not name:
+            raise ValueError(f"Missing variable name in .env on line {line_number}.")
+        if value[:1] in {"'", '"'}:
+            if len(value) < 2 or value[-1] != value[0]:
+                raise ValueError(f"Unclosed quote in .env on line {line_number}.")
+            value = value[1:-1]
+        os.environ.setdefault(name, value)
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
@@ -85,14 +105,13 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 
-# Database configuration defaults to SQLite for local development. Set
-# DB_ENGINE=mysql and the DB_* variables to use MySQL.
-if os.environ.get("DB_ENGINE", "sqlite").lower() == "mysql":
+# MySQL is the default database. Set DB_ENGINE=sqlite to opt into SQLite.
+if os.environ.get("DB_ENGINE", "mysql").lower() == "mysql":
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.mysql",
             "NAME": os.environ.get("DB_NAME", "learnhub"),
-            "USER": os.environ.get("DB_USER", ""),
+            "USER": os.environ.get("DB_USER", "root"),
             "PASSWORD": os.environ.get("DB_PASSWORD", ""),
             "HOST": os.environ.get("DB_HOST", "127.0.0.1"),
             "PORT": os.environ.get("DB_PORT", "3306"),

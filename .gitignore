@@ -1,0 +1,53 @@
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Django and local data
+*.log
+local_settings.py
+*.sqlite3
+*.sqlite3-journal
+staticfiles/
+media/
+
+# Tests, type checking, and linting
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+.pyre/
+.ruff_cache/
+.tox/
+.nox/
+
+# Build artifacts
+build/
+dist/
+pip-wheel-metadata/
+*.egg-info/
+
+# Editors and operating systems
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*~
